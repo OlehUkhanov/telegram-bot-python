@@ -18,7 +18,10 @@ def charger_adresses_email():
 def ecrire_adresses_email(adresses):
     with open(os.path.join(chemin_repertoire, 'mail.txt'), 'w', encoding='utf-8') as mail_fichier:
         mail_fichier.write('\n'.join(adresses))
-      
+
+def append_adresses_email(generated_email):
+    with open(os.path.join(chemin_repertoire, 'mail.txt'), 'a', encoding='utf-8') as mail_fichier:
+        mail_fichier.write(f'\n{generated_email}')
 
 # Charger les prénoms, noms et adresses e-mail
 with open(os.path.join(chemin_repertoire, 'prenom.txt'), 'r', encoding='utf-8') as prenoms_fichier:
@@ -44,13 +47,14 @@ def generer_nom_prenom():
     return prenom + ' ' + nom
 
 # Fonction pour envoyer les données via webhook
-def envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant):
+def envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur):
     url_webhook = "https://hook.eu1.make.com/cp4erl1o5m7xwka1qmgq9xg6jd297cse"
     payload = {
         "adresse_email": adresse_email,
         "nom_prenom": nom_prenom,
         "adresse": adresse,
-        "identifiant": identifiant  # Inclure l'identifiant dans le payload
+        "identifiant": identifiant,  # Inclure l'identifiant dans le payload
+        "utilisateur": utilisateur
     }
     response = requests.post(url_webhook, json=payload)
     print(response.status_code)
@@ -60,11 +64,17 @@ def envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant):
 def charger_adresses_mail2_si_vide():
     with open(os.path.join(chemin_repertoire, 'mail2.txt'), 'r', encoding='utf-8') as mail2_fichier:
         return mail2_fichier.read().splitlines()
+    
+def ecrire_adresses_mail2(addresses):
+    with open(os.path.join(chemin_repertoire, 'mail2.txt'), 'w', encoding='utf-8') as mail_fichier:
+        mail_fichier.write('\n'.join(addresses))
+
+def append_adresses_mail2(addresse_email):
+    with open(os.path.join(chemin_repertoire, 'mail2.txt'), 'a', encoding='utf-8') as mail_fichier:
+        mail_fichier.write(f'\n{addresse_email}')
 
 # Commande /start
 def start(update: Update, context: CallbackContext) -> None:
-    global email_idx
-    email_idx = 0
     global adresses_email
     adresses_email = charger_adresses_email()
 
@@ -76,6 +86,7 @@ def start(update: Update, context: CallbackContext) -> None:
             return
         else:
             ecrire_adresses_email(adresses_email)
+            ecrire_adresses_mail2([])
 
     # Générer un nouvel identifiant unique et le stocker dans user_data
     context.user_data['identifiant'] = str(uuid.uuid4())
@@ -124,14 +135,16 @@ def show_address_confirmation(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("Vous n'avez pas encore choisi de fichier d'adresse.")
 
 # Nouvelle fonction pour envoyer l'adresse par webhook et supprimer l'adresse du fichier après envoi
-def envoyer_adresse_et_supprimer(adresse_email, nom_prenom, adresse, identifiant):
-    envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant)
+def envoyer_adresse_et_supprimer(adresse_email, nom_prenom, adresse, identifiant, utilisateur):
+    envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur)
 
     # Supprimer l'adresse e-mail envoyée du fichier mail.txt
     global adresses_email
     if adresse_email in adresses_email:
         adresses_email.remove(adresse_email)
         ecrire_adresses_email(adresses_email)
+        append_adresses_mail2(adresse_email)
+        
 
 # Nouvelle fonction pour gérer la validation de l'adresse par l'utilisateur
 def validate_address(update: Update, context: CallbackContext) -> None:
@@ -139,7 +152,14 @@ def validate_address(update: Update, context: CallbackContext) -> None:
     query.answer()
     selected_address = context.user_data.get('selected_address')
     if selected_address:
-        show_email_confirmation(update, context)
+        buttons = [
+            [InlineKeyboardButton("Ija", callback_data=f"user_selection:Ija"),
+            InlineKeyboardButton("Mra", callback_data=f"user_selection:Mra")]
+        ]
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+        # Utiliser context.bot.send_message(...) au lieu de update.message.reply_text(...)
+        context.bot.send_message(chat_id=update.effective_chat.id, text="Choisissez l'utilisateur :", reply_markup=reply_markup)
     else:
         query.message.reply_text("Vous n'avez pas encore choisi d'adresse à valider.")
         query.answer()
@@ -161,16 +181,24 @@ def reject_address(update: Update, context: CallbackContext) -> None:
     query.edit_message_text("Adresse sélectionnée :\n{}".format(selected_address),
                             reply_markup=InlineKeyboardMarkup([
                                 [InlineKeyboardButton("Valider l'adresse", callback_data="validate_address"),
-                                    InlineKeyboardButton("Refuser l'adresse", callback_data="reject_address")]
+                                InlineKeyboardButton("Refuser l'adresse", callback_data="reject_address")]
                             ]))
+
+# Nouvelle fonction pour gérer le choix du fichier d'adresse par l'utilisateur
+def user_selection(update: Update, context: CallbackContext) -> None:
+    query = update.callback_query
+    query.answer()
+    utilisateur = query.data.split(":")[1]
+    context.user_data['utilisateur'] = utilisateur
+
+    # Continuer le processus en demandant à l'utilisateur de valider ou refuser l'adresse
+    show_email_confirmation(update, context)
 
 
 """ email selection """
 # Nouvelle fonction pour afficher l'e-mail et demander à l'utilisateur de la valider ou refuser
 def show_email_confirmation(update: Update, context: CallbackContext) -> None:
-    global email_idx
-    adresse_email = adresses_email[email_idx]
-    email_idx = email_idx+1
+    adresse_email = random.choice(adresses_email)
     context.user_data['adresse_email'] = adresse_email
 
     # Afficher l'e-mail et les boutons de confirmation
@@ -201,23 +229,17 @@ def reject_email_address(update: Update, context: CallbackContext) -> None:
     # Supprimer l'adresse précédente de la session pour permettre au bot de proposer une nouvelle adresse
     del context.user_data['adresse_email']
 
-    global email_idx
-    if email_idx < len(adresses_email):
-        adresse_email = adresses_email[email_idx]
-        email_idx = email_idx + 1
-        context.user_data['adresse_email'] = adresse_email
+    adresse_email = random.choice(adresses_email)
+    context.user_data['adresse_email'] = adresse_email
 
-        # Continuer le processus
-        query = update.callback_query
-        query.edit_message_text("E-mail sélectionnée :\n{}".format(adresse_email),
-                    reply_markup=InlineKeyboardMarkup([
-                        [InlineKeyboardButton("Valider l'e-mail", callback_data="validate_email_address"),
-                        InlineKeyboardButton("Refuser l'e-mail", callback_data="reject_email_address"),
-                        InlineKeyboardButton("e-mail générer", callback_data="email_generate")]
-                    ]))
-    else:
-        query.message.reply_text("Débordement de l'index des e-mails.")
-        query.answer()
+    # Continuer le processus
+    query = update.callback_query
+    query.edit_message_text("E-mail sélectionnée :\n{}".format(adresse_email),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Valider l'e-mail", callback_data="validate_email_address"),
+                    InlineKeyboardButton("Refuser l'e-mail", callback_data="reject_email_address"),
+                    InlineKeyboardButton("e-mail générer", callback_data="email_generate")]
+                ]))
 
 #email generate
 def email_generate(update: Update, context: CallbackContext) -> None:
@@ -270,9 +292,9 @@ def email_generate(update: Update, context: CallbackContext) -> None:
 
         url = "https://p55-maildomainws.icloud.com/v1/hme/reserve"
         payload = {
-        'hme': created_mail,  # Example payload data
-        'label': 'settings',
-        'note': 'Generated through the iCloud Telegram bot'
+            'hme': created_mail,  # Example payload data
+            'label': 'settings',
+            'note': 'Generated through the iCloud Telegram bot'
         }
 
         response = requests.post(url, headers=headers, cookies=cookies, json=payload)
@@ -284,6 +306,9 @@ def email_generate(update: Update, context: CallbackContext) -> None:
             del context.user_data['adresse_email']
 
             adresse_email = created_mail
+            global adresses_email
+            adresses_email.append(adresse_email)
+            append_adresses_email(adresse_email)
             context.user_data['adresse_email'] = adresse_email
 
             # Continuer le processus
@@ -315,7 +340,7 @@ def show_name_confirmation(update: Update, context: CallbackContext) -> None:
     context.bot.send_message(chat_id=update.effective_chat.id, text="Nom et prénom sélectionnée :\n{}".format(nom_prenom),
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("Valider l'nom", callback_data="validate_name"),
-                            InlineKeyboardButton("Refuser l'nom", callback_data="reject_name")]
+                        InlineKeyboardButton("Refuser l'nom", callback_data="reject_name")]
                     ]))
 
 # Nouvelle fonction pour gérer la validation de l'e-mail par l'utilisateur
@@ -327,26 +352,29 @@ def validate_name(update: Update, context: CallbackContext) -> None:
     nom_prenom = context.user_data.get('nom_prenom')
     if selected_address and adresse_email and nom_prenom:
         identifiant = context.user_data['identifiant']  # Récupérer l'identifiant généré
+        utilisateur = context.user_data['utilisateur']  # Récupérer l'identifiant généré
 
         # Créer le texte à envoyer en tant que message MarkdownV2
         text_to_send = (
             f"Adresse mail : `{adresse_email}`\n"
             f"Nom et prénom : `{nom_prenom}`\n"
             f"Adresse : `{selected_address}`\n"
-            f"Identifiant : `{identifiant}`"  # Inclure l'identifiant dans le message
+            f"Identifiant : `{identifiant}`\n"  # Inclure l'identifiant dans le message
+            f"utilisateur : `{utilisateur}`\n"
         )
 
         # Envoyer le texte en tant que message MarkdownV2
         query.message.reply_text(text_to_send, parse_mode=ParseMode.MARKDOWN_V2)
 
         # Envoyer les données via webhook en incluant l'identifiant et supprimer l'adresse du fichier mail.txt
-        envoyer_adresse_et_supprimer(adresse_email, nom_prenom, selected_address, identifiant)
+        envoyer_adresse_et_supprimer(adresse_email, nom_prenom, selected_address, identifiant, utilisateur)
 
         # Supprimer les données de la session pour permettre au bot de continuer
         del context.user_data['selected_address_file']
         del context.user_data['selected_address']
         del context.user_data['adresse_email']
         del context.user_data['nom_prenom']
+        del context.user_data['utilisateur']
     else:
         query.message.reply_text("Vous n'avez pas encore choisi d'adresse, de mail ou de nom à valider.")
         query.answer()
@@ -367,7 +395,7 @@ def reject_name(update: Update, context: CallbackContext) -> None:
     query.edit_message_text("Nom et prénom sélectionnée :\n{}".format(nom_prenom),
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("Valider l'nom", callback_data="validate_name"),
-                            InlineKeyboardButton("Refuser l'nom", callback_data="reject_name")]
+                        InlineKeyboardButton("Refuser l'nom", callback_data="reject_name")]
                     ]))
 # ...
 
@@ -392,7 +420,11 @@ def main():
 
     # Ajouter le gestionnaire pour le bouton de refus d'adresse
     dispatcher.add_handler(CallbackQueryHandler(reject_address, pattern="^reject_address$"))
+    
 
+    """ user selection """
+    # Ajouter le gestionnaire pour les boutons de choix de fichier d'adresse
+    dispatcher.add_handler(CallbackQueryHandler(user_selection, pattern="^user_selection:"))
 
     """ email validation """
     # Ajouter le gestionnaire pour le bouton de validation d'e-mail
