@@ -70,8 +70,12 @@ def ecrire_adresses_mail2(addresses):
         mail_fichier.write('\n'.join(addresses))
 
 def append_adresses_mail2(addresse_email):
-    with open(os.path.join(chemin_repertoire, 'mail2.txt'), 'a', encoding='utf-8') as mail_fichier:
-        mail_fichier.write(f'\n{addresse_email}')
+    path = os.path.join(chemin_repertoire, 'mail2.txt')
+    with open(path, 'a', encoding='utf-8') as mail_fichier:
+        if os.path.getsize(path) == 0:
+            mail_fichier.write(f'{addresse_email}')
+        else:
+            mail_fichier.write(f'\n{addresse_email}')
 
 # Commande /start
 def start(update: Update, context: CallbackContext) -> None:
