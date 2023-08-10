@@ -355,6 +355,8 @@ def validate_name(update: Update, context: CallbackContext) -> None:
     adresse_email = context.user_data.get('adresse_email')
     nom_prenom = context.user_data.get('nom_prenom')
     if selected_address and adresse_email and nom_prenom:
+        selected_address_file = context.user_data['selected_address_file']
+        postal_code = "".join(selected_address_file.split(".")[:-1])
         identifiant = context.user_data['identifiant']  # Récupérer l'identifiant généré
         utilisateur = context.user_data['utilisateur']  # Récupérer l'identifiant généré
 
@@ -364,7 +366,8 @@ def validate_name(update: Update, context: CallbackContext) -> None:
             f"Nom et prénom : `{nom_prenom}`\n"
             f"Adresse : `{selected_address}`\n"
             f"Identifiant : `{identifiant}`\n"  # Inclure l'identifiant dans le message
-            f"utilisateur : `{utilisateur}`\n"
+            f"Utilisateur : `{utilisateur}`\n"
+            f"Postal Code : `{postal_code}`\n"
         )
 
         # Envoyer le texte en tant que message MarkdownV2
