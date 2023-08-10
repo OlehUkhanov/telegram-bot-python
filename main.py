@@ -47,14 +47,15 @@ def generer_nom_prenom():
     return prenom + ' ' + nom
 
 # Fonction pour envoyer les données via webhook
-def envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur):
+def envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur, postal_code):
     url_webhook = "https://hook.eu1.make.com/cp4erl1o5m7xwka1qmgq9xg6jd297cse"
     payload = {
         "adresse_email": adresse_email,
         "nom_prenom": nom_prenom,
         "adresse": adresse,
         "identifiant": identifiant,  # Inclure l'identifiant dans le payload
-        "utilisateur": utilisateur
+        "utilisateur": utilisateur,
+        "postal_code": postal_code
     }
     response = requests.post(url_webhook, json=payload)
     print(response.status_code)
@@ -139,8 +140,8 @@ def show_address_confirmation(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("Vous n'avez pas encore choisi de fichier d'adresse.")
 
 # Nouvelle fonction pour envoyer l'adresse par webhook et supprimer l'adresse du fichier après envoi
-def envoyer_adresse_et_supprimer(adresse_email, nom_prenom, adresse, identifiant, utilisateur):
-    envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur)
+def envoyer_adresse_et_supprimer(adresse_email, nom_prenom, adresse, identifiant, utilisateur, postal_code):
+    envoyer_donnees_webhook(adresse_email, nom_prenom, adresse, identifiant, utilisateur, postal_code)
 
     # Supprimer l'adresse e-mail envoyée du fichier mail.txt
     global adresses_email
@@ -374,7 +375,7 @@ def validate_name(update: Update, context: CallbackContext) -> None:
         query.message.reply_text(text_to_send, parse_mode=ParseMode.MARKDOWN_V2)
 
         # Envoyer les données via webhook en incluant l'identifiant et supprimer l'adresse du fichier mail.txt
-        envoyer_adresse_et_supprimer(adresse_email, nom_prenom, selected_address, identifiant, utilisateur)
+        envoyer_adresse_et_supprimer(adresse_email, nom_prenom, selected_address, identifiant, utilisateur, postal_code)
 
         # Supprimer les données de la session pour permettre au bot de continuer
         del context.user_data['selected_address_file']
